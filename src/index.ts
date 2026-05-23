@@ -14,11 +14,10 @@ app.listen(PORT, () => {
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'AZSRGDTS34245',
+  username: 'poiuytres',
 };
 
 const RECONNECT_DELAY_MS = 5000;
-
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleReconnect(reason: string) {
@@ -50,17 +49,21 @@ function startBot() {
 
   const bot = mineflayer.createBot(BOT_CONFIG);
 
-  bot.on('spawn', () => {
-    console.log('[Bot] ✓ البوت دخل سيرفر zero7even بنجاح! (spawn)');
-  });
-
-  // Log every chat message so we can see server responses (captcha prompts, auth messages, etc.)
+  // تسجيل الدخول الذكي بمجرد رؤية رسالة السيرفر في الشات
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
     console.log(`[Chat] ${text}`);
+
+    if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
+      console.log('[Bot] 🔑 تم رصد رسالة الحماية! جاري تسجيل الدخول تلقائياً...');
+      bot.chat('/login poiuytres');
+    }
   });
 
-  // Log title/subtitle packets (some servers show captcha or auth prompts as titles)
+  bot.on('spawn', () => {
+    console.log('[Bot] ✓ البوت رسبن رسميّاً داخل العالم الآن!');
+  });
+
   bot._client.on('title', (packet: Record<string, unknown>) => {
     console.log('[Title packet]', JSON.stringify(packet));
   });
@@ -76,7 +79,6 @@ function startBot() {
     clearInterval(afkInterval);
     const readable = extractText(reason);
     console.log(`[Kicked] النص: "${readable}"`);
-    console.log('[Kicked] Raw:', JSON.stringify(reason, null, 2));
     scheduleReconnect(`kicked: ${readable}`);
   });
 
@@ -88,7 +90,6 @@ function startBot() {
 
   bot.on('error', (err) => {
     console.log(`[Error] نوع الخطأ: ${err.name}, الرسالة: ${err.message}`);
-    console.log('[Error] Stack:', err.stack);
   });
 }
 
