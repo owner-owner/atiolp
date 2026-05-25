@@ -14,11 +14,11 @@ app.listen(PORT, () => {
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'fgdsre', 
+  username: 'iolp', 
 };
 
 // جعل وقت إعادة الاتصال بارد (كل دقيقتين) عشان ما يسبب سبام للسيرفر
-const RECONNECT_DELAY_MS = 120000; 
+const RECONNECT_DELAY_MS = 30000; 
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleReconnect(reason: string) {
@@ -56,7 +56,7 @@ function startBot() {
 
     if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
       console.log('[Bot] 🔑 تم رصد رسالة الحماية! جاري تسجيل الدخول...');
-      bot.chat('/login xnxxc'); 
+      bot.chat('/login iolp'); 
     }
   });
 
