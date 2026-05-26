@@ -14,7 +14,7 @@ app.listen(PORT, () => {
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'iolp', 
+  username: 'AZERTY65', 
 };
 
 // جعل وقت إعادة الاتصال بارد (كل دقيقتين) عشان ما يسبب سبام للسيرفر
@@ -56,7 +56,7 @@ function startBot() {
 
     if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
       console.log('[Bot] 🔑 تم رصد رسالة الحماية! جاري تسجيل الدخول...');
-      bot.chat('/login iolp'); 
+      bot.chat('/login AZERTY66'); 
     }
   });
 
