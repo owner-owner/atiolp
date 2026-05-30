@@ -56,7 +56,7 @@ function startBot() {
 
     if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
       console.log('[Bot] 🔑 تم رصد رسالة الحماية! جاري تسجيل الدخول...');
-      bot.chat('/login azerty65'); 
+      bot.chat('/login AZERTY65'); 
     }
   });
 
