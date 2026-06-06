@@ -18,7 +18,7 @@ const BOT_CONFIG = {
 };
 
 // جعل وقت إعادة الاتصال بارد (كل دقيقتين) عشان ما يسبب سبام للسيرفر
-const RECONNECT_DELAY_MS = 30000; 
+const RECONNECT_DELAY_MS = 8000; 
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleReconnect(reason: string) {
