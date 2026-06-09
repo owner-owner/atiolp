@@ -11,12 +11,12 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 const BOT_CONFIG = {
-  host: 'اكتب_آيبي_السيرفر_هنا', // 👈 ضع آيبي السيرفر الجديد هنا
+  host: 'zero7even.net', // 👈 ضع آيبي السيرفر الجديد هنا
   port: 25565,
-  username: 'اسم_الحساب', // 👈 ضع اسم حساب البوت هنا
+  username: 'atiolp', // 👈 ضع اسم حساب البوت هنا
 };
 
-const RECONNECT_DELAY_MS = 30000; // مهلة أمان 30 ثانية قبل إعادة الاتصال
+const RECONNECT_DELAY_MS = 5000; // مهلة أمان 30 ثانية قبل إعادة الاتصال
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let afkResetTimeout: ReturnType<typeof setTimeout> | null = null;
 
