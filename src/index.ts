@@ -16,7 +16,7 @@ const BOT_CONFIG = {
   username: 'atiolp', 
 };
 
-const RECONNECT_DELAY_MS = 30000; 
+const RECONNECT_DELAY_MS = 3000; 
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let afkResetTimeout: ReturnType<typeof setTimeout> | null = null;
 let spawnTimeout: ReturnType<typeof setTimeout> | null = null; // 👈 متغير جديد لحفظ مؤقت الـ 7 ثوانٍ
@@ -80,7 +80,7 @@ function startBot() {
 
       console.log('[Bot] 💤 جاري إرسال أمر الـ /afk لبدء تجميع الـ Shards...');
       bot.chat('/afk');
-    }, 7000); 
+    }, 5000); 
   });
 
   bot.on('kicked', (reason) => {
