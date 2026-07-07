@@ -11,10 +11,9 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 const BOT_CONFIG = {
-  host: 'zero7even.net', 
+  host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp
-    ', 
+  username: 'atiolp',
 };
 
 const RECONNECT_DELAY_MS = 5000; 
@@ -64,7 +63,7 @@ function startBot() {
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       } catch (err) {
-        // تجاهل أخطاء النقل البسيطة لعدم ملء الكونسول
+        // تجاهل الأخطاء الصامتة لراحة الكونسول
       }
     }
   }
