@@ -17,20 +17,7 @@ const BOT_CONFIG = {
 };
 
 const RECONNECT_DELAY_MS = 5000; 
-let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-let afkResetTimeout: ReturnType<typeof setTimeout> | null = null;
-let spawnTimeout: ReturnType<typeof setTimeout> | null = null; 
-
-const THREE_HOURS_MS = 10500000; 
-
-function scheduleReconnect(reason: string) {
-  if (reconnectTimeout) return;
-  console.log(`[Disconnect] سيتم إعادة الاتصال خلال 5 ثوانٍ... السبب: ${reason}`);
-  reconnectTimeout = setTimeout(() => {
-    reconnectTimeout = null;
-    startBot();
-  }, RECONNECT_DELAY_MS);
-}
+let spawnTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function startBot() {
   const bot = mineflayer.createBot({
@@ -39,89 +26,47 @@ function startBot() {
     physicsEnabled: false
   });
 
-  function triggerRelog() {
-    if (afkResetTimeout) clearTimeout(afkResetTimeout);
-    if (spawnTimeout) clearTimeout(spawnTimeout); 
-    bot.quit(); 
-  }
+  // هذه الدالة تنقر على كل آيتم في الحقيبة وتنقله للـ GUI المفتوح
+  async function fastSellItems(window: any) {
+    const items = bot.inventory.items();
+    if (items.length === 0) return;
 
-  async function transferInventoryToChest(window: any) {
-    const itemsInInventory = bot.inventory.items();
-    if (itemsInInventory.length === 0) return;
-
-    let stackCounter = 0;
-
-    for (const item of itemsInInventory) {
-      try {
-        await bot.deposit(item.type, null, item.count);
-        stackCounter++;
-
-        if (stackCounter === 3) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          stackCounter = 0;
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-      } catch (err) {
-        // تجاهل الأخطاء الصامتة لراحة الكونسول
-      }
+    for (const item of items) {
+      // النقر الأيسر على الآيتم في الحقيبة (مع التنسيق الصحيح للـ Slot)
+      await bot.clickWindow(item.slot, 0, 0);
+      // النقر في أول خانة متاحة في الصندوق (غالباً الخانات من 0 إلى 26)
+      await bot.clickWindow(0, 0, 0); 
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
 
   bot.on('windowOpen', (window) => {
-    if (window.type.includes('chest') || window.type.includes('container')) {
-      setTimeout(() => {
-        transferInventoryToChest(window);
-      }, 1000);
-    }
+    // بمجرد فتح أي نافذة، انتظر ثانية ثم ابدأ البيع
+    setTimeout(() => {
+      fastSellItems(window);
+    }, 1000);
   });
 
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
-
-    if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول') || text.includes('Please, login')) {
-      console.log('[Bot] 🔑 تم رصد طلب الحماية: جاري تسجيل الدخول الآن...');
+    if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
       bot.chat('/login AZERTY65'); 
-    }
-
-    if (text.includes('تم تفعيل وضع AFK بنجاح') || text.includes('AFK mode activated') || text.includes('وضع - AFK خلال') || text.includes('successfully')) {
-      if (afkResetTimeout) clearTimeout(afkResetTimeout);
-      afkResetTimeout = setTimeout(() => {
-        triggerRelog();
-      }, THREE_HOURS_MS);
     }
   });
 
   bot.on('spawn', () => {
     if (spawnTimeout) clearTimeout(spawnTimeout);
-    
     spawnTimeout = setTimeout(() => {
       bot.setControlState('sneak', true); 
-
       setTimeout(() => {
         bot.chat('/sell');
       }, 10000); 
-
     }, 3000); 
   });
 
-  bot.on('kicked', (reason) => {
-    if (afkResetTimeout) clearTimeout(afkResetTimeout);
-    if (spawnTimeout) clearTimeout(spawnTimeout); 
-    console.log(`[Exit/Kick] تم طرد البوت من السيرفر! السبب: ${reason}`);
-    scheduleReconnect(`Kicked: ${reason}`);
-  });
-
-  bot.on('end', (reason) => {
-    if (afkResetTimeout) clearTimeout(afkResetTimeout);
-    if (spawnTimeout) clearTimeout(spawnTimeout); 
-    console.log(`[Exit/End] انقطع الاتصال بالخادم! السبب: ${reason}`);
-    scheduleReconnect(`Socket closed (end): ${reason}`);
-  });
-
-  bot.on('error', (err) => {
-    console.log(`[Error] حدث خطأ في الاتصال: ${err.name} - ${err.message}`);
-  });
+  bot.on('error', (err) => console.log(`[Error] ${err.message}`));
+  bot.on('kicked', () => setTimeout(startBot, RECONNECT_DELAY_MS));
+  bot.on('end', () => setTimeout(startBot, RECONNECT_DELAY_MS));
 }
 
 startBot();
