@@ -17,7 +17,20 @@ const BOT_CONFIG = {
 };
 
 const RECONNECT_DELAY_MS = 5000; 
-let spawnTimeout: ReturnType<typeof setTimeout> | null = null;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let afkResetTimeout: ReturnType<typeof setTimeout> | null = null;
+let spawnTimeout: ReturnType<typeof setTimeout> | null = null; 
+
+const THREE_HOURS_MS = 10500000; 
+
+function scheduleReconnect(reason: string) {
+  if (reconnectTimeout) return;
+  console.log(`[Disconnect] سيتم إعادة الاتصال خلال 5 ثوانٍ... السبب: ${reason}`);
+  reconnectTimeout = setTimeout(() => {
+    reconnectTimeout = null;
+    startBot();
+  }, RECONNECT_DELAY_MS);
+}
 
 function startBot() {
   const bot = mineflayer.createBot({
@@ -26,47 +39,94 @@ function startBot() {
     physicsEnabled: false
   });
 
-  // هذه الدالة تنقر على كل آيتم في الحقيبة وتنقله للـ GUI المفتوح
-  async function fastSellItems(window: any) {
+  function triggerRelog() {
+    if (afkResetTimeout) clearTimeout(afkResetTimeout);
+    if (spawnTimeout) clearTimeout(spawnTimeout); 
+    bot.quit(); 
+  }
+
+  // الدالة السحرية: محاكاة الـ Shift + Click لبيع الأغراض فوراً
+  async function fastShiftSell(window: any) {
+    // جلب الأغراض المتاحة في جيب البوت فقط
     const items = bot.inventory.items();
     if (items.length === 0) return;
 
+    let stackCounter = 0;
+
     for (const item of items) {
-      // النقر الأيسر على الآيتم في الحقيبة (مع التنسيق الصحيح للـ Slot)
-      await bot.clickWindow(item.slot, 0, 0);
-      // النقر في أول خانة متاحة في الصندوق (غالباً الخانات من 0 إلى 26)
-      await bot.clickWindow(0, 0, 0); 
-      await new Promise(resolve => setTimeout(resolve, 300));
+      try {
+        // النمط المتقدم: النقر الأيسر مع تفعيل الـ Shift (الرقم 1 يعني تفعيل الـ Shift-Click في ماين كرافت)
+        await bot.clickWindow(item.slot, 0, 1);
+        stackCounter++;
+
+        // إذا باع 3 ستاكات، يتوقف ثانيتين للأمان من الحماية (Anti-Cheat)
+        if (stackCounter === 3) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          stackCounter = 0;
+        } else {
+          // مهلة بسيطة جداً بين النقرات
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      } catch (err) {
+        // تجاوز الأخطاء الصامتة
+      }
     }
   }
 
+  // عند فتح واجهة الـ /sell
   bot.on('windowOpen', (window) => {
-    // بمجرد فتح أي نافذة، انتظر ثانية ثم ابدأ البيع
     setTimeout(() => {
-      fastSellItems(window);
-    }, 1000);
+      fastShiftSell(window);
+    }, 1500); // مهلة 1.5 ثانية لضمان تحميل السيرفر للواجهة بالكامل
   });
 
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
-    if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
+
+    if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول') || text.includes('Please, login')) {
+      console.log('[Bot] 🔑 تم رصد طلب الحماية: جاري تسجيل الدخول الآن...');
       bot.chat('/login AZERTY65'); 
+    }
+
+    if (text.includes('تم تفعيل وضع AFK بنجاح') || text.includes('AFK mode activated') || text.includes('وضع - AFK خلال') || text.includes('successfully')) {
+      if (afkResetTimeout) clearTimeout(afkResetTimeout);
+      afkResetTimeout = setTimeout(() => {
+        triggerRelog();
+      }, THREE_HOURS_MS);
     }
   });
 
   bot.on('spawn', () => {
     if (spawnTimeout) clearTimeout(spawnTimeout);
+    
     spawnTimeout = setTimeout(() => {
       bot.setControlState('sneak', true); 
+
+      // الانتظار 10 ثوانٍ بعد الدخول والتحرك ثم إرسال أمر البيع
       setTimeout(() => {
         bot.chat('/sell');
       }, 10000); 
+
     }, 3000); 
   });
 
-  bot.on('error', (err) => console.log(`[Error] ${err.message}`));
-  bot.on('kicked', () => setTimeout(startBot, RECONNECT_DELAY_MS));
-  bot.on('end', () => setTimeout(startBot, RECONNECT_DELAY_MS));
+  bot.on('kicked', (reason) => {
+    if (afkResetTimeout) clearTimeout(afkResetTimeout);
+    if (spawnTimeout) clearTimeout(spawnTimeout); 
+    console.log(`[Exit/Kick] تم طرد البوت من السيرفر! السبب: ${reason}`);
+    scheduleReconnect(`Kicked: ${reason}`);
+  });
+
+  bot.on('end', (reason) => {
+    if (afkResetTimeout) clearTimeout(afkResetTimeout);
+    if (spawnTimeout) clearTimeout(spawnTimeout); 
+    console.log(`[Exit/End] انقطع الاتصال بالخادم! السبب: ${reason}`);
+    scheduleReconnect(`Socket closed (end): ${reason}`);
+  });
+
+  bot.on('error', (err) => {
+    console.log(`[Error] حدث خطأ في الاتصال: ${err.name} - ${err.message}`);
+  });
 }
 
 startBot();
