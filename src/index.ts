@@ -45,30 +45,34 @@ function startBot() {
     bot.quit(); 
   }
 
-  // الدالة السحرية: محاكاة الـ Shift + Click لبيع الأغراض فوراً
+  // الدالة الاحترافية لتحديد خانات الحقيبة الفردية داخل النافذة المفتوحة
   async function fastShiftSell(window: any) {
-    // جلب الأغراض المتاحة في جيب البوت فقط
-    const items = bot.inventory.items();
-    if (items.length === 0) return;
-
+    // معرفة أين تنتهي خانات الصندوق المفتوح وتبدأ خانات جيب اللاعب
+    // في الصناديق الكبيرة تكون 54 خانة، والصغيرة 27 خانة
+    const inventoryStartSlot = window.inventoryStart; 
+    
     let stackCounter = 0;
 
-    for (const item of items) {
-      try {
-        // النمط المتقدم: النقر الأيسر مع تفعيل الـ Shift (الرقم 1 يعني تفعيل الـ Shift-Click في ماين كرافت)
-        await bot.clickWindow(item.slot, 0, 1);
-        stackCounter++;
+    // المرور على جميع الخانات المخصصة لحقيبة اللاعب داخل النافذة المفتوحة
+    for (let slotId = inventoryStartSlot; slotId < window.slots.length; slotId++) {
+      const item = window.slots[slotId];
+      
+      // إذا وجدنا أي آيتم في هذه الخانة (تخطي الخانات الفارغة)
+      if (item) {
+        try {
+          // الضغط بـ Shift + Click على الخانة الصحيحة والمحدثة للنافذة
+          await bot.clickWindow(slotId, 0, 1);
+          stackCounter++;
 
-        // إذا باع 3 ستاكات، يتوقف ثانيتين للأمان من الحماية (Anti-Cheat)
-        if (stackCounter === 3) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          stackCounter = 0;
-        } else {
-          // مهلة بسيطة جداً بين النقرات
-          await new Promise(resolve => setTimeout(resolve, 300));
+          if (stackCounter === 3) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            stackCounter = 0;
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        } catch (err) {
+          // تجاوز الأخطاء الصامتة
         }
-      } catch (err) {
-        // تجاوز الأخطاء الصامتة
       }
     }
   }
@@ -77,7 +81,7 @@ function startBot() {
   bot.on('windowOpen', (window) => {
     setTimeout(() => {
       fastShiftSell(window);
-    }, 1500); // مهلة 1.5 ثانية لضمان تحميل السيرفر للواجهة بالكامل
+    }, 1500); 
   });
 
   bot.on('message', (jsonMsg) => {
@@ -102,7 +106,6 @@ function startBot() {
     spawnTimeout = setTimeout(() => {
       bot.setControlState('sneak', true); 
 
-      // الانتظار 10 ثوانٍ بعد الدخول والتحرك ثم إرسال أمر البيع
       setTimeout(() => {
         bot.chat('/sell');
       }, 10000); 
