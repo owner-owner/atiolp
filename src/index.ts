@@ -4,7 +4,7 @@ import express from 'express';
 const PORT = process.env.PORT || '10000';
 const app = express();
 app.get('/', (_req, res) => {
-  res.status(200).send('Bot is active');
+  res.status(200).send('Bot is active on Render');
 });
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Express] Listening on port ${PORT}`);
@@ -25,7 +25,7 @@ const THREE_HOURS_MS = 10500000;
 
 function scheduleReconnect(reason: string) {
   if (reconnectTimeout) return;
-  console.log(`[Disconnect] سيتم إعادة الاتصال خلال 5 ثوانٍ... السبب: ${reason}`);
+  console.log(`[Reconnect] سيتم إعادة الاتصال خلال 5 ثوانٍ... السبب: ${reason}`);
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null;
     startBot();
@@ -45,43 +45,50 @@ function startBot() {
     bot.quit(); 
   }
 
-  // الدالة الاحترافية لتحديد خانات الحقيبة الفردية داخل النافذة المفتوحة
-  async function fastShiftSell(window: any) {
-    // معرفة أين تنتهي خانات الصندوق المفتوح وتبدأ خانات جيب اللاعب
-    // في الصناديق الكبيرة تكون 54 خانة، والصغيرة 27 خانة
+  // الدالة المطورة لبيع الأغراض بأمان وضمان تسجيل النقرات في السيرفر
+  async function safeShiftSell(window: any) {
+    // 1. انتظر حتى يستقر السيرفر ويحدث بيانات النافذة بالكامل
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     const inventoryStartSlot = window.inventoryStart; 
-    
     let stackCounter = 0;
 
-    // المرور على جميع الخانات المخصصة لحقيبة اللاعب داخل النافذة المفتوحة
+    // 2. فحص الخانات الخاصة بحقيبة اللاعب فقط داخل النافذة المفتوحة
     for (let slotId = inventoryStartSlot; slotId < window.slots.length; slotId++) {
       const item = window.slots[slotId];
       
-      // إذا وجدنا أي آيتم في هذه الخانة (تخطي الخانات الفارغة)
       if (item) {
         try {
-          // الضغط بـ Shift + Click على الخانة الصحيحة والمحدثة للنافذة
+          // محاكاة الضغط بـ Shift + Click (النمط 1)
           await bot.clickWindow(slotId, 0, 1);
           stackCounter++;
 
+          // إذا أرسل البوت 3 ستاكات، نهدئ اللعب ثانيتين للأمان من الـ Anti-Cheat
           if (stackCounter === 3) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 2500));
             stackCounter = 0;
           } else {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // مهلة نصف ثانية بين الستاكات (طبيعية جداً وتضمن قبول السيرفر للبيع)
+            await new Promise(resolve => setTimeout(resolve, 600));
           }
         } catch (err) {
-          // تجاوز الأخطاء الصامتة
+          // تجاهل الأخطاء العابرة
         }
       }
     }
+
+    // 3. نقفل النافذة بعد الانتهاء لتأكيد عملية البيع وتنشيط الـ AFK التلقائي
+    setTimeout(() => {
+      try {
+        bot.closeWindow(window);
+      } catch (e) {}
+    }, 1000);
   }
 
-  // عند فتح واجهة الـ /sell
+  // لقطة فتح واجهة الـ /sell
   bot.on('windowOpen', (window) => {
-    setTimeout(() => {
-      fastShiftSell(window);
-    }, 1500); 
+    // تشغيل عملية البيع الآمنة فوراً
+    safeShiftSell(window);
   });
 
   bot.on('message', (jsonMsg) => {
@@ -106,9 +113,10 @@ function startBot() {
     spawnTimeout = setTimeout(() => {
       bot.setControlState('sneak', true); 
 
+      // الانتظار 15 ثانية بعد الرسبنة لضمان ثبات اللعبة ثم تشغيل الـ /sell
       setTimeout(() => {
         bot.chat('/sell');
-      }, 10000); 
+      }, 15000); 
 
     }, 3000); 
   });
