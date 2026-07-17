@@ -3,12 +3,8 @@ import express from 'express';
 
 const PORT = process.env.PORT || '10000';
 const app = express();
-app.get('/', (_req, res) => {
-  res.status(200).send('Bot is active');
-});
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Express] Listening on port ${PORT}`);
-});
+app.get('/', (_req, res) => res.status(200).send('Bot Active'));
+app.listen(PORT, '0.0.0.0');
 
 const BOT_CONFIG = {
   host: 'zero7even.net',
@@ -16,16 +12,16 @@ const BOT_CONFIG = {
   username: 'atiolp',
 };
 
-const RECONNECT_DELAY_MS = 5000; 
+const RECONNECT_DELAY_MS = 5000;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let afkResetTimeout: ReturnType<typeof setTimeout> | null = null;
-let spawnTimeout: ReturnType<typeof setTimeout> | null = null; 
+let mainInterval: ReturnType<typeof setInterval> | null = null;
 
-const THREE_HOURS_MS = 10500000; 
+const THREE_HOURS_MS = 10500000;
 
-function scheduleReconnect(reason: string) {
+function scheduleReconnect() {
   if (reconnectTimeout) return;
-  console.log(`[Disconnect] سيتم إعادة الاتصال خلال 5 ثوانٍ... السبب: ${reason}`);
+  if (mainInterval) clearInterval(mainInterval);
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null;
     startBot();
@@ -39,97 +35,71 @@ function startBot() {
     physicsEnabled: false
   });
 
-  function triggerRelog() {
-    if (afkResetTimeout) clearTimeout(afkResetTimeout);
-    if (spawnTimeout) clearTimeout(spawnTimeout); 
-    bot.quit(); 
-  }
-
-  // الدالة الاحترافية لتحديد خانات الحقيبة الفردية داخل النافذة المفتوحة
-  async function fastShiftSell(window: any) {
-    // معرفة أين تنتهي خانات الصندوق المفتوح وتبدأ خانات جيب اللاعب
-    // في الصناديق الكبيرة تكون 54 خانة، والصغيرة 27 خانة
-    const inventoryStartSlot = window.inventoryStart; 
-    
+  async function forceShiftSell() {
     let stackCounter = 0;
 
-    // المرور على جميع الخانات المخصصة لحقيبة اللاعب داخل النافذة المفتوحة
-    for (let slotId = inventoryStartSlot; slotId < window.slots.length; slotId++) {
-      const item = window.slots[slotId];
-      
-      // إذا وجدنا أي آيتم في هذه الخانة (تخطي الخانات الفارغة)
-      if (item) {
-        try {
-          // الضغط بـ Shift + Click على الخانة الصحيحة والمحدثة للنافذة
-          await bot.clickWindow(slotId, 0, 1);
-          stackCounter++;
+    // نفض الخانات الثابتة للجيب من 9 إلى 44 غصب بـ Shift-Click
+    for (let slotId = 9; slotId <= 44; slotId++) {
+      try {
+        await bot.clickWindow(slotId, 0, 1); 
+        stackCounter++;
 
-          if (stackCounter === 3) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            stackCounter = 0;
-          } else {
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
-        } catch (err) {
-          // تجاوز الأخطاء الصامتة
+        if (stackCounter === 3) {
+          await new Promise(resolve => setTimeout(resolve, 2000)); 
+          stackCounter = 0;
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 300)); 
         }
-      }
+      } catch (err) {}
     }
+
+    setTimeout(() => {
+      try { bot.closeWindow(bot.currentWindow || (bot as any).openWindow); } catch(e){}
+    }, 1000);
   }
 
-  // عند فتح واجهة الـ /sell
   bot.on('windowOpen', (window) => {
     setTimeout(() => {
-      fastShiftSell(window);
-    }, 1500); 
+      forceShiftSell();
+    }, 2000); 
   });
 
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
-
-    if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول') || text.includes('Please, login')) {
-      console.log('[Bot] 🔑 تم رصد طلب الحماية: جاري تسجيل الدخول الآن...');
-      bot.chat('/login AZERTY65'); 
+    if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
+      bot.chat('/login AZERTY65');
     }
-
-    if (text.includes('تم تفعيل وضع AFK بنجاح') || text.includes('AFK mode activated') || text.includes('وضع - AFK خلال') || text.includes('successfully')) {
+    if (text.includes('وضع - AFK') || text.includes('AFK mode') || text.includes('successfully')) {
       if (afkResetTimeout) clearTimeout(afkResetTimeout);
       afkResetTimeout = setTimeout(() => {
-        triggerRelog();
+        if (mainInterval) clearInterval(mainInterval);
+        bot.quit();
       }, THREE_HOURS_MS);
     }
   });
 
   bot.on('spawn', () => {
-    if (spawnTimeout) clearTimeout(spawnTimeout);
+    if (mainInterval) clearInterval(mainInterval);
     
-    spawnTimeout = setTimeout(() => {
+    setTimeout(() => {
       bot.setControlState('sneak', true); 
 
-      setTimeout(() => {
-        bot.chat('/sell');
-      }, 10000); 
+      // التايمر الدوري صار الحين 30000 ملي ثانية (يعني 30 ثانية بالضبط)
+      mainInterval = setInterval(() => {
+        if (!bot.currentWindow) {
+          bot.chat('/sell');
+        }
+      }, 30000); 
 
-    }, 3000); 
+      // أول بيعة سريعة عند الرسبنة مباشرة
+      bot.chat('/sell');
+
+    }, 5000);
   });
 
-  bot.on('kicked', (reason) => {
-    if (afkResetTimeout) clearTimeout(afkResetTimeout);
-    if (spawnTimeout) clearTimeout(spawnTimeout); 
-    console.log(`[Exit/Kick] تم طرد البوت من السيرفر! السبب: ${reason}`);
-    scheduleReconnect(`Kicked: ${reason}`);
-  });
-
-  bot.on('end', (reason) => {
-    if (afkResetTimeout) clearTimeout(afkResetTimeout);
-    if (spawnTimeout) clearTimeout(spawnTimeout); 
-    console.log(`[Exit/End] انقطع الاتصال بالخادم! السبب: ${reason}`);
-    scheduleReconnect(`Socket closed (end): ${reason}`);
-  });
-
-  bot.on('error', (err) => {
-    console.log(`[Error] حدث خطأ في الاتصال: ${err.name} - ${err.message}`);
-  });
+  bot.on('kicked', () => scheduleReconnect());
+  bot.on('end', () => scheduleReconnect());
+  bot.on('error', () => scheduleReconnect());
 }
 
 startBot();
