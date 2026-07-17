@@ -20,6 +20,7 @@ const RECONNECT_DELAY_MS = 5000;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let afkResetTimeout: ReturnType<typeof setTimeout> | null = null;
 let spawnTimeout: ReturnType<typeof setTimeout> | null = null; 
+let sellCooldown = false; // لمنع تكرار إرسال أمر البيع بشكل عشوائي متزامن
 
 const THREE_HOURS_MS = 10500000; 
 
@@ -45,22 +46,16 @@ function startBot() {
     bot.quit(); 
   }
 
-  // الدالة الاحترافية لتحديد خانات الحقيبة الفردية داخل النافذة المفتوحة
+  // دالة البيع السريع بـ Shift + Click لجميع محتويات الحقيبة
   async function fastShiftSell(window: any) {
-    // معرفة أين تنتهي خانات الصندوق المفتوح وتبدأ خانات جيب اللاعب
-    // في الصناديق الكبيرة تكون 54 خانة، والصغيرة 27 خانة
     const inventoryStartSlot = window.inventoryStart; 
-    
     let stackCounter = 0;
 
-    // المرور على جميع الخانات المخصصة لحقيبة اللاعب داخل النافذة المفتوحة
     for (let slotId = inventoryStartSlot; slotId < window.slots.length; slotId++) {
       const item = window.slots[slotId];
       
-      // إذا وجدنا أي آيتم في هذه الخانة (تخطي الخانات الفارغة)
       if (item) {
         try {
-          // الضغط بـ Shift + Click على الخانة الصحيحة والمحدثة للنافذة
           await bot.clickWindow(slotId, 0, 1);
           stackCounter++;
 
@@ -75,13 +70,48 @@ function startBot() {
         }
       }
     }
+
+    // إغلاق الواجهة تلقائياً بعد إنهاء النقل لتأكيد عملية البيع
+    setTimeout(() => {
+      try {
+        bot.closeWindow(window);
+      } catch (e) {}
+    }, 1000);
+  }
+
+  // محفز فحص الحقيبة وطلب أمر البيع تلقائياً عند دخول أي غرض
+  function triggerAutoSell() {
+    // إذا كان البوت يبيع حالياً أو في فترة الانتظار، نتجاهل الطلب مؤقتاً
+    if (sellCooldown || bot.currentWindow) return;
+
+    const items = bot.inventory.items();
+    if (items.length === 0) return;
+
+    sellCooldown = true;
+    
+    // ننتظر 5 ثوانٍ من دخول أول غرض لتجميع باقي الأغراض التي قد تسقط بالحقيبة قبل كتابة الأمر
+    setTimeout(() => {
+      if (bot.currentWindow) {
+        sellCooldown = false;
+        return;
+      }
+      bot.chat('/sell');
+      
+      // مهلة أمان مدتها 15 ثانية بين كل عملية بيع تالية لمنع السيرفر من رصد نشاط البوت كسبام
+      setTimeout(() => {
+        sellCooldown = false;
+      }, 15000);
+
+    }, 5000);
   }
 
   // عند فتح واجهة الـ /sell
   bot.on('windowOpen', (window) => {
-    setTimeout(() => {
-      fastShiftSell(window);
-    }, 1500); 
+    if (window.type.includes('chest') || window.type.includes('container')) {
+      setTimeout(() => {
+        fastShiftSell(window);
+      }, 1500); 
+    }
   });
 
   bot.on('message', (jsonMsg) => {
@@ -106,8 +136,14 @@ function startBot() {
     spawnTimeout = setTimeout(() => {
       bot.setControlState('sneak', true); 
 
+      // المراقبة التلقائية للحقيبة: بمجرد تحديث أي خانة ودخول آيتم، يتحفز نظام البيع
+      bot.inventory.on('updateSlot', () => {
+        triggerAutoSell();
+      });
+
+      // تشغيل بيع أولي بعد 10 ثوانٍ من الرسبنة في حال كان جيبه ممتلئاً مسبقاً قبل الدخول
       setTimeout(() => {
-        bot.chat('/sell');
+        triggerAutoSell();
       }, 10000); 
 
     }, 3000); 
