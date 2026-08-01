@@ -13,12 +13,12 @@ app.listen(PORT, '0.0.0.0', () => {
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp',
+  username: 'atiolp_spawner',
 };
 
 const RECONNECT_DELAY_MS = 5000;
-let reconnectTimeout: ReturnType<setTimeout> | null = null;
-let spawnerInterval: ReturnType<setInterval> | null = null;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let spawnerInterval: ReturnType<typeof setInterval> | null = null;
 
 let isFirstTime = true;
 
