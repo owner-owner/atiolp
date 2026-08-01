@@ -9,11 +9,21 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Express] Server running on port ${PORT}`);
 });
 
+// منع انهيار العملية عند حدوث أخطاء قراءة الحزم (Packet Parsing Errors)
+process.on('uncaughtException', (err) => {
+  if (err.message.includes('abnormally large') || err.message.includes('Chunk size') || err.message.includes('Read error')) {
+    console.log('[Spawner-Bot] 🛡️ تم التقاط وتجاهل خطأ حزمة عابر لتفادي الخروج.');
+  } else {
+    console.error('[UncaughtException]', err);
+  }
+});
+
 // 2. إعدادات البوت
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp',
+  username: 'atiolp_spawner',
+  version: '1.20.4', // ⚠️ التوافق الأفضل مع بروتوكول الشبكة للنسخ الحديثة
 };
 
 const RECONNECT_DELAY_MS = 5000;
@@ -22,7 +32,8 @@ let spawnerInterval: ReturnType<typeof setInterval> | null = null;
 
 let isFirstTime = true;
 
-function scheduleReconnect() {
+function scheduleReconnect(reason: string) {
+  console.log(`[Spawner-Bot] 🔄 إعادة الاتصال خلال 5 ثوانٍ بسبب: ${reason}`);
   if (reconnectTimeout) return;
   if (spawnerInterval) clearInterval(spawnerInterval);
   reconnectTimeout = setTimeout(() => {
@@ -32,11 +43,17 @@ function scheduleReconnect() {
 }
 
 function startBot() {
+  console.log('[Spawner-Bot] ⏳ جاري بدء الاتصال بالسيرفر zero7even.net...');
+
   const bot = mineflayer.createBot({
     ...BOT_CONFIG,
     viewDistance: 'tiny',
     physicsEnabled: false,
     checkTimeoutInterval: 60 * 1000
+  });
+
+  bot.on('login', () => {
+    console.log('[Spawner-Bot] ✅ تم الاتصال بالهوست وقبول الحساب!');
   });
 
   async function interactWithSpawner() {
@@ -47,10 +64,13 @@ function startBot() {
 
     if (spawnerBlock) {
       try {
+        console.log('[Spawner-Bot] 🎯 العثور على سبونر، جاري التفاعل...');
         await bot.activateBlock(spawnerBlock);
-      } catch (err) {}
+      } catch (err) {
+        console.log('[Spawner-Bot] ❌ خطأ في التفاعل مع السبونر:', err);
+      }
     } else {
-      console.log('[Spawner-Bot] ⚠️ لم يتم العثور على سبونر قادم في نطاق 4 بلوكات!');
+      console.log('[Spawner-Bot] ⚠️ لم يتم العثور على سبونر في نطاق 4 بلوكات!');
     }
   }
 
@@ -79,23 +99,23 @@ function startBot() {
     const text = jsonMsg.toString();
     
     if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
-      console.log('[Spawner-Bot] 🔑 تسجيل الدخول...');
+      console.log('[Spawner-Bot] 🔑 إرسال رمز الدخول...');
       bot.chat('/login AZERTY65');
       
       setTimeout(() => {
-        console.log('[Spawner-Bot] 🌐 تحويل السيرفر إلى /server smp...');
+        console.log('[Spawner-Bot] 🌐 التحويل إلى /server smp...');
         bot.chat('/server smp');
       }, 3000);
     }
   });
 
   bot.on('spawn', () => {
+    console.log('[Spawner-Bot] 🎉 البوت رسبرن (Spawn) وظهر داخل العالم بشكل ثابت!');
     if (spawnerInterval) clearInterval(spawnerInterval);
     isFirstTime = true;
 
     setTimeout(() => {
       bot.setControlState('sneak', true);
-
       interactWithSpawner();
 
       spawnerInterval = setInterval(() => {
@@ -105,12 +125,12 @@ function startBot() {
     }, 5000);
   });
 
-  bot.on('kicked', () => scheduleReconnect());
-  bot.on('end', () => scheduleReconnect());
+  bot.on('kicked', (reason) => scheduleReconnect(`Kicked: ${reason}`));
+  bot.on('end', (reason) => scheduleReconnect(`Disconnected: ${reason}`));
   bot.on('error', (err) => {
     console.log('[Spawner-Bot] ⚠️ تنبيه خطأ:', err.message);
     if (!err.message.includes('abnormally large') && !err.message.includes('Chunk size')) {
-      scheduleReconnect();
+      scheduleReconnect(`Error: ${err.message}`);
     }
   });
 }
