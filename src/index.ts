@@ -23,12 +23,13 @@ const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
   username: 'atiolp_spawner',
-  version: '1.20.4', // ⚠️ التوافق الأفضل مع بروتوكول الشبكة للنسخ الحديثة
+  version: '1.20.4',
 };
 
 const RECONNECT_DELAY_MS = 5000;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let spawnerInterval: ReturnType<typeof setInterval> | null = null;
+let antiAfkInterval: ReturnType<typeof setInterval> | null = null;
 
 let isFirstTime = true;
 
@@ -36,6 +37,8 @@ function scheduleReconnect(reason: string) {
   console.log(`[Spawner-Bot] 🔄 إعادة الاتصال خلال 5 ثوانٍ بسبب: ${reason}`);
   if (reconnectTimeout) return;
   if (spawnerInterval) clearInterval(spawnerInterval);
+  if (antiAfkInterval) clearInterval(antiAfkInterval);
+
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null;
     startBot();
@@ -48,7 +51,7 @@ function startBot() {
   const bot = mineflayer.createBot({
     ...BOT_CONFIG,
     viewDistance: 'tiny',
-    physicsEnabled: false,
+    physicsEnabled: true, // تفعيل الفيزيائيات البسيطة لمنع طرد الـ AFK
     checkTimeoutInterval: 60 * 1000
   });
 
@@ -95,8 +98,10 @@ function startBot() {
     }, 1500);
   });
 
+  // استقبال رسائل الشات والرد التلقائي
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
+    console.log(`[Chat] ${text}`);
     
     if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
       console.log('[Spawner-Bot] 🔑 إرسال رمز الدخول...');
@@ -112,7 +117,14 @@ function startBot() {
   bot.on('spawn', () => {
     console.log('[Spawner-Bot] 🎉 البوت رسبرن (Spawn) وظهر داخل العالم بشكل ثابت!');
     if (spawnerInterval) clearInterval(spawnerInterval);
+    if (antiAfkInterval) clearInterval(antiAfkInterval);
     isFirstTime = true;
+
+    // حركة خفيفة كل 30 ثانية لمنع طرد الـ AFK من السيرفر
+    antiAfkInterval = setInterval(() => {
+      bot.setControlState('jump', true);
+      setTimeout(() => bot.setControlState('jump', false), 500);
+    }, 30000);
 
     setTimeout(() => {
       bot.setControlState('sneak', true);
@@ -125,8 +137,17 @@ function startBot() {
     }, 5000);
   });
 
-  bot.on('kicked', (reason) => scheduleReconnect(`Kicked: ${reason}`));
+  // تحسين قراءة سبب الطرد (Parsing Kick Reason)
+  bot.on('kicked', (reason) => {
+    let readableReason = reason;
+    try {
+      readableReason = typeof reason === 'object' ? JSON.stringify(reason) : reason;
+    } catch (e) {}
+    scheduleReconnect(`Kicked: ${readableReason}`);
+  });
+
   bot.on('end', (reason) => scheduleReconnect(`Disconnected: ${reason}`));
+  
   bot.on('error', (err) => {
     console.log('[Spawner-Bot] ⚠️ تنبيه خطأ:', err.message);
     if (!err.message.includes('abnormally large') && !err.message.includes('Chunk size')) {
