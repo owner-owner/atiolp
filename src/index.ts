@@ -2,23 +2,24 @@ import mineflayer from 'mineflayer';
 import express from 'express';
 
 // 1. إعداد سيرفر Express لإبقاء Render شغالاً
-const PORT = process.env.PORT || '10000';
+const PORT = parseInt(process.env.PORT || '10000', 10);
 const app = express();
 app.get('/', (_req, res) => res.status(200).send('Spawner Bot Active'));
-app.listen(PORT, '0.0.0.0');
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Express] Server running on port ${PORT}`);
+});
 
 // 2. إعدادات البوت
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp_spawner', // اسم حساب بوت السبونر
+  username: 'atiolp',
 };
 
 const RECONNECT_DELAY_MS = 5000;
-let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-let spawnerInterval: ReturnType<typeof setInterval> | null = null;
+let reconnectTimeout: ReturnType<setTimeout> | null = null;
+let spawnerInterval: ReturnType<setInterval> | null = null;
 
-// متغير لمتابعة المرة الأولى مقابل المرات القادمة
 let isFirstTime = true;
 
 function scheduleReconnect() {
@@ -38,7 +39,6 @@ function startBot() {
     checkTimeoutInterval: 60 * 1000
   });
 
-  // دالة النقر كليك يمين على السبونر القريب
   async function interactWithSpawner() {
     const spawnerBlock = bot.findBlock({
       matching: (block) => block.name.includes('spawner'),
@@ -54,14 +54,13 @@ function startBot() {
     }
   }
 
-  // التعامل مع فتح GUI الصندوق
   bot.on('windowOpen', (window) => {
     setTimeout(async () => {
       try {
         if (isFirstTime) {
           console.log('[Spawner-Bot] 🔘 الضغط الأول: الخانة 11');
           await bot.clickWindow(11, 0, 0);
-          isFirstTime = false; // المرات القادمة ستصبح الخانة 51
+          isFirstTime = false;
         } else {
           console.log('[Spawner-Bot] 🔘 الضغط الدوري (5 دقائق): الخانة 51');
           await bot.clickWindow(51, 0, 0);
@@ -69,7 +68,6 @@ function startBot() {
       } catch (err) {
         console.log('[Spawner-Bot] ❌ خطأ في الضغط على الخانة:', err);
       } finally {
-        // إغلاق الواجهة بعد 1 ثانية من النقر
         setTimeout(() => {
           try { bot.closeWindow(window); } catch (e) {}
         }, 1000);
@@ -77,7 +75,6 @@ function startBot() {
     }, 1500);
   });
 
-  // الاستماع للشات وتسجيل الدخول والتحويل
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
     
@@ -94,15 +91,13 @@ function startBot() {
 
   bot.on('spawn', () => {
     if (spawnerInterval) clearInterval(spawnerInterval);
-    isFirstTime = true; // إعادة تعيين للخانة 11 في كل عملية إعادة اتصال جديدة
+    isFirstTime = true;
 
     setTimeout(() => {
       bot.setControlState('sneak', true);
 
-      // أول كليك فور الدخول والاستقرار
       interactWithSpawner();
 
-      // التكرار كل 5 دقائق (300,000ms) للخانة 51
       spawnerInterval = setInterval(() => {
         interactWithSpawner();
       }, 300000);
@@ -114,7 +109,6 @@ function startBot() {
   bot.on('end', () => scheduleReconnect());
   bot.on('error', (err) => {
     console.log('[Spawner-Bot] ⚠️ تنبيه خطأ:', err.message);
-    // إذا كان الخطأ بسيطاً في قراءة الـ packet لا نخرج مباشرة
     if (!err.message.includes('abnormally large') && !err.message.includes('Chunk size')) {
       scheduleReconnect();
     }
