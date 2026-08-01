@@ -3,25 +3,24 @@ import express from 'express';
 
 const PORT = process.env.PORT || '10000';
 const app = express();
-app.get('/', (_req, res) => res.status(200).send('Bot Active'));
+app.get('/', (_req, res) => res.status(200).send('Spawner Bot Active'));
 app.listen(PORT, '0.0.0.0');
 
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp',
+  username: 'atiolp', // اسم حساب بوت السبونر
 };
 
 const RECONNECT_DELAY_MS = 5000;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-let afkResetTimeout: ReturnType<typeof setTimeout> | null = null;
-let mainInterval: ReturnType<typeof setInterval> | null = null;
+let spawnerInterval: ReturnType<typeof setInterval> | null = null;
 
-const THREE_HOURS_MS = 10500000;
+let isFirstTime = true; // متغير لمتابعة هل هي المرة الأولى أم تكرار الـ 5 دقائق
 
 function scheduleReconnect() {
   if (reconnectTimeout) return;
-  if (mainInterval) clearInterval(mainInterval);
+  if (spawnerInterval) clearInterval(spawnerInterval);
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null;
     startBot();
@@ -35,102 +34,72 @@ function startBot() {
     physicsEnabled: false
   });
 
-  // دالة البيع المضمونة والمحدثة لـ Mineflayer 4.23.0
-  async function forceNormalClickSell(window: any) {
-    // مصفوفة تعبر عن حالة أول 45 خانة في الصندوق (من 0 إلى 44)
-    // نعتبر الخانة فارغة (true) إذا لم يكن بها آيتم في السيرفر
-    const availableChestSlots: boolean[] = [];
-    for (let i = 0; i < 45; i++) {
-      availableChestSlots[i] = window.slots[i] === null || window.slots[i] === undefined;
-    }
+  // دالة النقر كليك يمين على السبونر الملاين للبوت
+  async function interactWithSpawner() {
+    const spawnerBlock = bot.findBlock({
+      matching: (block) => block.name.includes('spawner'),
+      maxDistance: 4
+    });
 
-    let currentTargetChestSlot = 0;
-
-    // خانات جيب اللاعب الثابتة داخل النافذة المفتوحة تبدأ من 54 إلى 89
-    // (حيث أن الصندوق يأخذ الخانات من 0 إلى 53)
-    const playerInventoryStartInWindow = 54;
-    const playerInventoryEndInWindow = 89;
-
-    for (let slotId = playerInventoryStartInWindow; slotId <= playerInventoryEndInWindow; slotId++) {
-      const item = window.slots[slotId];
-
-      // إذا وجدت خانة بها غرض في حقيبتك
-      if (item) {
-        // البحث عن أول خانة بيع فارغة متاحة في الصندوق من 0 إلى 44
-        while (currentTargetChestSlot < 45 && !availableChestSlots[currentTargetChestSlot]) {
-          currentTargetChestSlot++;
-        }
-
-        // إذا تملأت أول 45 خانة بيع تماماً، نتوقف فوراً
-        if (currentTargetChestSlot >= 45) {
-          break;
-        }
-
-        try {
-          // 1. النقر كليك يسار عادي لالتقاط الآيتم على الماوس
-          await bot.clickWindow(slotId, 0, 0);
-          await new Promise(resolve => setTimeout(resolve, 200)); // مهلة انتظار لاستجابة السيرفر
-
-          // 2. النقر كليك يسار عادي في خانة البيع الفارغة بالصندوق لإفلات الآيتم
-          await bot.clickWindow(currentTargetChestSlot, 0, 0);
-          
-          // تحديث حالة الخانة بأنها أصبحت ممتلئة الآن
-          availableChestSlots[currentTargetChestSlot] = false;
-
-          // 3. انتظر مهلة الأمان المطلوبة (200ms) قبل الانتقال للآيتم التالي
-          await new Promise(resolve => setTimeout(resolve, 200));
-        } catch (err) {
-          // في حال حدوث أي خطأ مفاجئ، نقوم بإفلات الآيتم العالق في الماوس لئلا يخرب الدورة
-          if (bot.inventory.cursor) {
-            await bot.clickWindow(slotId, 0, 0).catch(() => {});
-          }
-        }
-      }
-    }
-
-    // إغلاق النافذة تلقائياً بعد الانتهاء بثانية واحدة
-    setTimeout(() => {
+    if (spawnerBlock) {
       try {
-        bot.closeWindow(window);
-      } catch (e) {}
-    }, 1000);
+        await bot.activateBlock(spawnerBlock);
+      } catch (err) {}
+    } else {
+      console.log('[Spawner-Bot] ⚠️ لم يتم العثور على سبونر قريب!');
+    }
   }
 
-  // لقط فتح واجهة الـ /sell وتفعيل نظام الكليك العادي
+  // التعامل مع فتح القائمة واختيار الخانة المناسبة
   bot.on('windowOpen', (window) => {
-    setTimeout(() => {
-      forceNormalClickSell(window);
-    }, 2000); // انتظار ثانيتين لضمان استقرار الواجهة في السيرفر
+    setTimeout(async () => {
+      try {
+        if (isFirstTime) {
+          // المرة الأولى: الضغط على الخانة 11
+          console.log('[Spawner-Bot] 🔘 الضغط الأول على الخانة 11...');
+          await bot.clickWindow(11, 0, 0);
+          isFirstTime = false; // تحويل الحالة للمرات القادمة
+        } else {
+          // المرات القادمة (كل 5 دقائق): الضغط على الخانة 51
+          console.log('[Spawner-Bot] 🔘 الضغط الدوري كل 5 دقائق على الخانة 51...');
+          await bot.clickWindow(51, 0, 0);
+        }
+      } catch (err) {
+        console.log('[Spawner-Bot] ❌ حدث خطأ أثناء النقر:', err);
+      } finally {
+        // إغلاق النافذة بعد الضغط
+        setTimeout(() => {
+          try { bot.closeWindow(window); } catch (e) {}
+        }, 1000);
+      }
+    }, 1500); // مهلة ثانيتان لاستقرار السيرفر
   });
 
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
+    
     if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
       bot.chat('/login AZERTY65');
-    }
-    if (text.includes('وضع - AFK') || text.includes('AFK mode') || text.includes('successfully')) {
-      if (afkResetTimeout) clearTimeout(afkResetTimeout);
-      afkResetTimeout = setTimeout(() => {
-        if (mainInterval) clearInterval(mainInterval);
-        bot.quit();
-      }, THREE_HOURS_MS);
+      setTimeout(() => {
+        bot.chat('/server smp');
+      }, 3000);
     }
   });
 
   bot.on('spawn', () => {
-    if (mainInterval) clearInterval(mainInterval);
-    
+    if (spawnerInterval) clearInterval(spawnerInterval);
+    isFirstTime = true; // إعادة تصفير الحالة عند الدخول الجديد
+
     setTimeout(() => {
       bot.setControlState('sneak', true);
 
-      // إرسال أمر البيع كل 30 ثانية
-      mainInterval = setInterval(() => {
-        if (!bot.currentWindow) {
-          bot.chat('/sell');
-        }
-      }, 30000);
+      // أول ضغطة فورية (ستفعل الخانة 11)
+      interactWithSpawner();
 
-      bot.chat('/sell');
+      // حلقة تكرارية كل 5 دقائق (300,000 ملي ثانية) تضغط على الخانة 51
+      spawnerInterval = setInterval(() => {
+        interactWithSpawner();
+      }, 300000);
 
     }, 5000);
   });
