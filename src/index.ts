@@ -10,15 +10,19 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 // منع انهيار العملية عند حدوث أخطاء قراءة الحزم
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', (err: Error) => {
   if (err.message.includes('abnormally large') || err.message.includes('Chunk size') || err.message.includes('Read error')) {
     console.log('[Spawner-Bot] 🛡️ تم التقاط وتجاهل خطأ حزمة عابر لتفادي الخروج.');
   } else {
-    console.error('[username 2. إعدادات البوت
+    console.error('[UncaughtException]', err);
+  }
+});
+
+// 2. إعدادات البوت
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp',
+  username: 'atiolp_spawner',
   version: '1.20.4',
 };
 
@@ -28,7 +32,6 @@ let spawnerInterval: ReturnType<typeof setInterval> | null = null;
 let antiAfkInterval: ReturnType<typeof setInterval> | null = null;
 
 let isFirstTime = true;
-let hasSentServerSmp = false;
 
 function scheduleReconnect(reason: string) {
   console.log(`[Spawner-Bot] 🔄 إعادة الاتصال خلال 5 ثوانٍ بسبب: ${reason}`);
@@ -44,7 +47,6 @@ function scheduleReconnect(reason: string) {
 
 function startBot() {
   console.log('[Spawner-Bot] ⏳ جاري بدء الاتصال بالسيرفر zero7even.net...');
-  hasSentServerSmp = false;
 
   const bot = mineflayer.createBot({
     ...BOT_CONFIG,
@@ -103,23 +105,19 @@ function startBot() {
 
     const lowerText = text.toLowerCase();
 
-    // التسجيل عند طلب السيرفر
     if (lowerText.includes('/register') || lowerText.includes('register')) {
       console.log('[Spawner-Bot] 🔑 جاري إرسال أمر التسجيل /register...');
       bot.chat('/register AZERTY65 AZERTY65');
-    } 
-    // تسجيل الدخول عند طلب السيرفر
-    else if (lowerText.includes('/login') || lowerText.includes('login') || lowerText.includes('تسجيل الدخول')) {
+    } else if (lowerText.includes('/login') || lowerText.includes('login') || lowerText.includes('تسجيل الدخول')) {
       console.log('[Spawner-Bot] 🔑 جاري إرسال أمر تسجيل الدخول /login...');
       bot.chat('/login AZERTY65');
     }
   });
 
-  // 🌐 الانقال إلى سيرفر smp فور رسبونة البوت داخل اللوبي
+  // 🌐 الانتقال إلى سيرفر smp فور رسبونة البوت داخل اللوبي
   bot.on('spawn', () => {
     console.log('[Spawner-Bot] 🎉 البوت ريسبون (Spawn) وظهر داخل العالم!');
 
-    // تنفيذ أمر التحويل إلى smp بعد ثانيتين من الدخول لتفادي حظر الـ Spam
     setTimeout(() => {
       console.log('[Spawner-Bot] 🌐 إرسال أمر /server smp للتحويل إلى السيرفر...');
       bot.chat('/server smp');
@@ -129,7 +127,7 @@ function startBot() {
     if (antiAfkInterval) clearInterval(antiAfkInterval);
     isFirstTime = true;
 
-    // حركة قفز خفيفة لمنع الطرد بسب الـ AFK
+    // حركة قفز خفيفة لمنع الطرد بسبب الـ AFK
     antiAfkInterval = setInterval(() => {
       bot.setControlState('jump', true);
       setTimeout(() => bot.setControlState('jump', false), 500);
