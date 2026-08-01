@@ -9,7 +9,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Express] Server running on port ${PORT}`);
 });
 
-// منع انهيار العملية عند حدوث أخطاء قراءة الحزم (Packet Parsing Errors)
+// منع انهيار العملية عند حدوث أخطاء قراءة الحزم
 process.on('uncaughtException', (err) => {
   if (err.message.includes('abnormally large') || err.message.includes('Chunk size') || err.message.includes('Read error')) {
     console.log('[Spawner-Bot] 🛡️ تم التقاط وتجاهل خطأ حزمة عابر لتفادي الخروج.');
@@ -22,7 +22,7 @@ process.on('uncaughtException', (err) => {
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp',
+  username: 'atiolp_spawner',
   version: '1.20.4',
 };
 
@@ -32,6 +32,7 @@ let spawnerInterval: ReturnType<typeof setInterval> | null = null;
 let antiAfkInterval: ReturnType<typeof setInterval> | null = null;
 
 let isFirstTime = true;
+let hasSentServerSmp = false;
 
 function scheduleReconnect(reason: string) {
   console.log(`[Spawner-Bot] 🔄 إعادة الاتصال خلال 5 ثوانٍ بسبب: ${reason}`);
@@ -47,11 +48,12 @@ function scheduleReconnect(reason: string) {
 
 function startBot() {
   console.log('[Spawner-Bot] ⏳ جاري بدء الاتصال بالسيرفر zero7even.net...');
+  hasSentServerSmp = false;
 
   const bot = mineflayer.createBot({
     ...BOT_CONFIG,
     viewDistance: 'tiny',
-    physicsEnabled: true, // تفعيل الفيزيائيات البسيطة لمنع طرد الـ AFK
+    physicsEnabled: true,
     checkTimeoutInterval: 60 * 1000
   });
 
@@ -98,34 +100,46 @@ function startBot() {
     }, 1500);
   });
 
-  // استقبال رسائل الشات والرد التلقائي
+  // 🔑 إدارة الدخول والتسجيل التلقائي الذكي
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
     console.log(`[Chat] ${text}`);
-    
-    if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
-      console.log('[Spawner-Bot] 🔑 إرسال رمز الدخول...');
+
+    const lowerText = text.toLowerCase();
+
+    // التسجيل عند طلب السيرفر
+    if (lowerText.includes('/register') || lowerText.includes('register')) {
+      console.log('[Spawner-Bot] 🔑 جاري إرسال أمر التسجيل /register...');
+      bot.chat('/register AZERTY65 AZERTY65');
+    } 
+    // تسجيل الدخول عند طلب السيرفر
+    else if (lowerText.includes('/login') || lowerText.includes('login') || lowerText.includes('تسجيل الدخول')) {
+      console.log('[Spawner-Bot] 🔑 جاري إرسال أمر تسجيل الدخول /login...');
       bot.chat('/login AZERTY65');
-      
-      setTimeout(() => {
-        console.log('[Spawner-Bot] 🌐 التحويل إلى /server smp...');
-        bot.chat('/server smp');
-      }, 3000);
     }
   });
 
+  // 🌐 الانقال إلى سيرفر smp فور رسبونة البوت داخل اللوبي
   bot.on('spawn', () => {
-    console.log('[Spawner-Bot] 🎉 البوت رسبرن (Spawn) وظهر داخل العالم بشكل ثابت!');
+    console.log('[Spawner-Bot] 🎉 البوت ريسبون (Spawn) وظهر داخل العالم!');
+
+    // تنفيذ أمر التحويل إلى smp بعد ثانيتين من الدخول لتفادي حظر الـ Spam
+    setTimeout(() => {
+      console.log('[Spawner-Bot] 🌐 إرسال أمر /server smp للتحويل إلى السيرفر...');
+      bot.chat('/server smp');
+    }, 2500);
+
     if (spawnerInterval) clearInterval(spawnerInterval);
     if (antiAfkInterval) clearInterval(antiAfkInterval);
     isFirstTime = true;
 
-    // حركة خفيفة كل 30 ثانية لمنع طرد الـ AFK من السيرفر
+    // حركة قفز خفيفة لمنع الطرد بسب الـ AFK
     antiAfkInterval = setInterval(() => {
       bot.setControlState('jump', true);
       setTimeout(() => bot.setControlState('jump', false), 500);
     }, 30000);
 
+    // التفاعل مع السبونر كل 5 دقائق
     setTimeout(() => {
       bot.setControlState('sneak', true);
       interactWithSpawner();
@@ -134,10 +148,9 @@ function startBot() {
         interactWithSpawner();
       }, 300000);
 
-    }, 5000);
+    }, 7000);
   });
 
-  // تحسين قراءة سبب الطرد (Parsing Kick Reason)
   bot.on('kicked', (reason) => {
     let readableReason = reason;
     try {
@@ -147,7 +160,7 @@ function startBot() {
   });
 
   bot.on('end', (reason) => scheduleReconnect(`Disconnected: ${reason}`));
-  
+
   bot.on('error', (err) => {
     console.log('[Spawner-Bot] ⚠️ تنبيه خطأ:', err.message);
     if (!err.message.includes('abnormally large') && !err.message.includes('Chunk size')) {
