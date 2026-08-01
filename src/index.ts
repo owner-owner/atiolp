@@ -1,22 +1,25 @@
 import mineflayer from 'mineflayer';
 import express from 'express';
 
+// 1. إعداد سيرفر Express لإبقاء Render شغالاً
 const PORT = process.env.PORT || '10000';
 const app = express();
 app.get('/', (_req, res) => res.status(200).send('Spawner Bot Active'));
 app.listen(PORT, '0.0.0.0');
 
+// 2. إعدادات البوت
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp', // اسم حساب بوت السبونر
+  username: 'atiolp_spawner', // اسم حساب بوت السبونر
 };
 
 const RECONNECT_DELAY_MS = 5000;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let spawnerInterval: ReturnType<typeof setInterval> | null = null;
 
-let isFirstTime = true; // متغير لمتابعة هل هي المرة الأولى أم تكرار الـ 5 دقائق
+// متغير لمتابعة المرة الأولى مقابل المرات القادمة
+let isFirstTime = true;
 
 function scheduleReconnect() {
   if (reconnectTimeout) return;
@@ -31,10 +34,11 @@ function startBot() {
   const bot = mineflayer.createBot({
     ...BOT_CONFIG,
     viewDistance: 'tiny',
-    physicsEnabled: false
+    physicsEnabled: false,
+    checkTimeoutInterval: 60 * 1000
   });
 
-  // دالة النقر كليك يمين على السبونر الملاين للبوت
+  // دالة النقر كليك يمين على السبونر القريب
   async function interactWithSpawner() {
     const spawnerBlock = bot.findBlock({
       matching: (block) => block.name.includes('spawner'),
@@ -46,41 +50,43 @@ function startBot() {
         await bot.activateBlock(spawnerBlock);
       } catch (err) {}
     } else {
-      console.log('[Spawner-Bot] ⚠️ لم يتم العثور على سبونر قريب!');
+      console.log('[Spawner-Bot] ⚠️ لم يتم العثور على سبونر قادم في نطاق 4 بلوكات!');
     }
   }
 
-  // التعامل مع فتح القائمة واختيار الخانة المناسبة
+  // التعامل مع فتح GUI الصندوق
   bot.on('windowOpen', (window) => {
     setTimeout(async () => {
       try {
         if (isFirstTime) {
-          // المرة الأولى: الضغط على الخانة 11
-          console.log('[Spawner-Bot] 🔘 الضغط الأول على الخانة 11...');
+          console.log('[Spawner-Bot] 🔘 الضغط الأول: الخانة 11');
           await bot.clickWindow(11, 0, 0);
-          isFirstTime = false; // تحويل الحالة للمرات القادمة
+          isFirstTime = false; // المرات القادمة ستصبح الخانة 51
         } else {
-          // المرات القادمة (كل 5 دقائق): الضغط على الخانة 51
-          console.log('[Spawner-Bot] 🔘 الضغط الدوري كل 5 دقائق على الخانة 51...');
+          console.log('[Spawner-Bot] 🔘 الضغط الدوري (5 دقائق): الخانة 51');
           await bot.clickWindow(51, 0, 0);
         }
       } catch (err) {
-        console.log('[Spawner-Bot] ❌ حدث خطأ أثناء النقر:', err);
+        console.log('[Spawner-Bot] ❌ خطأ في الضغط على الخانة:', err);
       } finally {
-        // إغلاق النافذة بعد الضغط
+        // إغلاق الواجهة بعد 1 ثانية من النقر
         setTimeout(() => {
           try { bot.closeWindow(window); } catch (e) {}
         }, 1000);
       }
-    }, 1500); // مهلة ثانيتان لاستقرار السيرفر
+    }, 1500);
   });
 
+  // الاستماع للشات وتسجيل الدخول والتحويل
   bot.on('message', (jsonMsg) => {
     const text = jsonMsg.toString();
     
     if (text.includes('login') || text.includes('/login') || text.includes('تسجيل الدخول')) {
+      console.log('[Spawner-Bot] 🔑 تسجيل الدخول...');
       bot.chat('/login AZERTY65');
+      
       setTimeout(() => {
+        console.log('[Spawner-Bot] 🌐 تحويل السيرفر إلى /server smp...');
         bot.chat('/server smp');
       }, 3000);
     }
@@ -88,15 +94,15 @@ function startBot() {
 
   bot.on('spawn', () => {
     if (spawnerInterval) clearInterval(spawnerInterval);
-    isFirstTime = true; // إعادة تصفير الحالة عند الدخول الجديد
+    isFirstTime = true; // إعادة تعيين للخانة 11 في كل عملية إعادة اتصال جديدة
 
     setTimeout(() => {
       bot.setControlState('sneak', true);
 
-      // أول ضغطة فورية (ستفعل الخانة 11)
+      // أول كليك فور الدخول والاستقرار
       interactWithSpawner();
 
-      // حلقة تكرارية كل 5 دقائق (300,000 ملي ثانية) تضغط على الخانة 51
+      // التكرار كل 5 دقائق (300,000ms) للخانة 51
       spawnerInterval = setInterval(() => {
         interactWithSpawner();
       }, 300000);
@@ -106,7 +112,13 @@ function startBot() {
 
   bot.on('kicked', () => scheduleReconnect());
   bot.on('end', () => scheduleReconnect());
-  bot.on('error', () => scheduleReconnect());
+  bot.on('error', (err) => {
+    console.log('[Spawner-Bot] ⚠️ تنبيه خطأ:', err.message);
+    // إذا كان الخطأ بسيطاً في قراءة الـ packet لا نخرج مباشرة
+    if (!err.message.includes('abnormally large') && !err.message.includes('Chunk size')) {
+      scheduleReconnect();
+    }
+  });
 }
 
 startBot();
