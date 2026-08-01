@@ -14,15 +14,11 @@ process.on('uncaughtException', (err) => {
   if (err.message.includes('abnormally large') || err.message.includes('Chunk size') || err.message.includes('Read error')) {
     console.log('[Spawner-Bot] 🛡️ تم التقاط وتجاهل خطأ حزمة عابر لتفادي الخروج.');
   } else {
-    console.error('[UncaughtException]', err);
-  }
-});
-
-// 2. إعدادات البوت
+    console.error('[username 2. إعدادات البوت
 const BOT_CONFIG = {
   host: 'zero7even.net',
   port: 25565,
-  username: 'atiolp_spawner',
+  username: 'atiolp',
   version: '1.20.4',
 };
 
