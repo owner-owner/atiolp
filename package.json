@@ -1,21 +1,21 @@
 {
-  "name": "@workspace/minecraft-bot",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
+  "name": "minecraft-spawner-bot",
+  "version": "1.0.0",
+  "description": "Mineflayer Bot for Minecraft 2026",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
   },
   "dependencies": {
-    "express": "^5.2.1",
-    "mineflayer": "^4.23.0",
-    "tsx": "^4.19.2"
+    "express": "^4.19.2",
+    "mineflayer": "latest"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
+    "@types/express": "^4.17.21",
     "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
 }
